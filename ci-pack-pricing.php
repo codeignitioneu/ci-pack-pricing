@@ -3,7 +3,7 @@
  * Plugin Name:       Pack & Unit Pricing for WooCommerce
  * Plugin URI:        https://github.com/codeignitioneu/ci-pack-pricing
  * Description:       Vânzare la bucată sau la set (pachet) + cantitate minimă de comandă. Prețul WooCommerce = prețul unității de vânzare (setul complet); pe pagina produsului se afișează prețul / bucată, prețul / set și comanda minimă.
- * Version:           2.0.0
+ * Version:           2.1.0
  * Author:            Code Ignition SRL
  * Author URI:        https://github.com/codeignitioneu
  * License:           GPL-2.0-or-later
@@ -22,32 +22,22 @@ define( 'CI_PACK_PRICING_FILE', __FILE__ );
 
 final class CI_Pack_Pricing {
 
-	const VERSION   = '2.0.0';
+	const VERSION   = '2.1.0';
 	const META_UNIT = '_ci_sale_unit';    // 'piece' | 'set'
 	const META_QTY  = '_ci_pack_qty';     // bucăți într-un set
 	const META_MIN  = '_ci_min_qty';      // cantitate minimă (în unități de vânzare)
 	const OPT_FOCUS = 'ci_pp_focus';      // 'piece' | 'set' – ce preț e afișat mare
 
-	/** Chei meta din versiunea 1.x, citite doar ca rezervă (migrare). Se elimină în 2.1. */
-	const LEGACY = array(
-		'_ci_sale_unit' => '_domix_unit',
-		'_ci_pack_qty'  => '_domix_set_qty',
-		'_ci_min_qty'   => '_domix_min_qty',
-	);
-
-	/** Citește o cheie meta, cu rezervă pe cheia veche. */
+	/** Citește o cheie meta a produsului. */
 	private static function meta( $product, $key ) {
-		$value = $product->get_meta( $key, true );
-		if ( '' === $value && isset( self::LEGACY[ $key ] ) ) {
-			$value = $product->get_meta( self::LEGACY[ $key ], true );
-		}
-		return $value;
+		return $product->get_meta( $key, true );
 	}
 
 	public static function init() {
 		self::updater();
 		// Admin: câmpuri în tab-ul General al produsului.
-		add_action( 'woocommerce_product_options_pricing', array( __CLASS__, 'admin_fields' ) );
+		add_action( 'woocommerce_product_options_general_product_data', array( __CLASS__, 'admin_fields' ) );
+		add_action( 'admin_head', array( __CLASS__, 'admin_styles' ) );
 		add_action( 'woocommerce_admin_process_product_object', array( __CLASS__, 'admin_save' ) );
 
 		// Admin: coloană în lista de produse.
@@ -253,7 +243,7 @@ final class CI_Pack_Pricing {
 		$unit = $product_object ? (string) self::meta( $product_object, self::META_UNIT ) : '';
 		$qty  = $product_object ? absint( self::meta( $product_object, self::META_QTY ) ) : 0;
 
-		echo '<div class="options_group ci-pp-admin">';
+		echo '<div class="options_group ci-pp-admin show_if_simple show_if_external">';
 
 		woocommerce_wp_select(
 			array(
@@ -297,6 +287,19 @@ final class CI_Pack_Pricing {
 		echo '</div>';
 	}
 
+	public static function admin_styles() {
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		if ( ! $screen || 'product' !== $screen->post_type ) {
+			return;
+		}
+		echo '<style id="ci-pack-pricing-admin">'
+			. '.wp-list-table .column-ci_pp_unit{width:8em;white-space:nowrap}'
+			. '.wp-list-table .column-ci_pp_unit small{display:block;color:#646970}'
+			. '@media screen and (max-width:782px){.wp-list-table .column-ci_pp_unit{display:none}}'
+			. '.ci-pp-admin .form-field input[type=number]{width:8em}'
+			. '</style>';
+	}
+
 	public static function admin_save( $product ) {
 		if ( isset( $_POST[ self::META_UNIT ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
 			$unit = sanitize_key( wp_unslash( $_POST[ self::META_UNIT ] ) ); // phpcs:ignore
@@ -334,7 +337,7 @@ final class CI_Pack_Pricing {
 		echo 'set' === $p['unit'] ? esc_html( 'Set ' . $p['qty'] . ' buc' ) : 'Bucată';
 		$min = self::min_qty( $product );
 		if ( $min > 1 ) {
-			echo '<br><small>' . esc_html( 'Min. ' . $min ) . '</small>';
+			echo '<small>' . esc_html( 'Min. ' . $min ) . '</small>';
 		}
 	}
 
